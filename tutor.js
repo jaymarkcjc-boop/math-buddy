@@ -1,4 +1,4 @@
-/* MATH-BUDDY v0.3: deterministic multilingual tutoring. No external API. */
+/* MATH-BUDDY v0.3.2: deterministic multilingual tutoring. No external API. */
 (function(root){'use strict';
 const E=typeof module!=='undefined'?require('./engine.js'):root.MBEngine;
 const L={
@@ -48,13 +48,33 @@ function worked(q,lang){const w=words(lang),a=E.parse(q.a),b=E.parse(q.b);if(!a|
 function topic(s){s=s.toLowerCase().replace(/\b(?:mag|pag|i)[ -]?(?=(?:add|subtract|multiply|divide|dagdag|bawas)\b)/g,'');const has=r=>r.test(s);let op=has(/\b(add(?:ition|ing)?|plus|dagdag|pagdaragdag|magdagdag|dugang|idugang)\b/)?'+':has(/\b(subtract(?:ion|ing)?|minus|bawas|pagbabawas|magbawas|ibawas|kuha|kuhaan)\b/)?'-':has(/\b(multip(?:ly|lication|lying|lika)|times|pagmumultiplika|parami|paramihin)\b/)?'×':has(/\b(divid(?:e|ing)|division|paghahati|hatiin|bahin|bahina)\b/)?'÷':null;let type=has(/fraction|praksiyon|praksyon|denominator|numerator|\d\s*\/\s*\d/)?'fraction':has(/decimal|desimal|\d\.\d/)?'decimal':has(/integer|buong numero|whole number/)?'integer':null;return {op,type};}
 const extras={en:{clarify:'I could not read that exact calculation. Please type one expression, such as 3/4 ÷ 1/2. I will not guess your numbers.',choose:'Which operation would you like to learn: addition, subtraction, multiplication or division?',activeOnly:'An unfinished guided practice session is open. I can only give hints for its current question. Finish or end that session in Study buddy to ask a different calculation.',error:'I could not process that message. Try typing one calculation, such as 1/2 + 1/3.',signWhy:'Notice the pattern: 3 × (−2) = −6, 2 × (−2) = −4, 1 × (−2) = −2, 0 × (−2) = 0. Each step increases by 2, so (−1) × (−2) = 2. This preserves the distributive rule.'},fil:{clarify:'Hindi ko nabasa ang eksaktong kalkulasyon. I-type ang isang operasyon, gaya ng 3/4 ÷ 1/2. Hindi ko huhulaan ang mga numero.',choose:'Aling operasyon ang gusto mong matutuhan: addition, subtraction, multiplication o division?',activeOnly:'May hindi pa tapos na guided practice. Pahiwatig lamang sa kasalukuyang tanong ang maibibigay ko. Tapusin o ihinto ang sesyon sa Kaagapay upang magtanong ng ibang kalkulasyon.',error:'Hindi ko naproseso ang mensahe. I-type ang isang kalkulasyon gaya ng 1/2 + 1/3.',signWhy:'Tingnan ang pattern: 3 × (−2) = −6, 2 × (−2) = −4, 1 × (−2) = −2, 0 × (−2) = 0. Tumataas ng 2 sa bawat hakbang, kaya (−1) × (−2) = 2. Nananatili ang distributive rule.'},ceb:{clarify:'Dili nako mabasa ang eksaktong kalkulasyon. I-type ang usa ka operation sama sa 3/4 ÷ 1/2. Dili nako tag-anon ang mga numero.',choose:'Unsang operation ang gusto nimong makat-onan: addition, subtraction, multiplication o division?',activeOnly:'Naa pay wala mahuman nga guided practice. Hint ra sa kasamtangang pangutana ang akong mahatag. Humanon o undangon ang session sa Kauban sa pagtuon aron makapangutana og laing kalkulasyon.',error:'Dili nako maproseso ang mensahe. I-type ang usa ka kalkulasyon sama sa 1/2 + 1/3.',signWhy:'Tan-awa ang pattern: 3 × (−2) = −6, 2 × (−2) = −4, 1 × (−2) = −2, 0 × (−2) = 0. Mosaka og 2 kada lakang, mao nga (−1) × (−2) = 2. Nasunod gihapon ang distributive rule.'}};
 for(const l of Object.keys(extras))Object.assign(L[l],extras[l]);
-function requestedLanguage(s){if(!/\b(?:explain|translate|answer|respond|ipaliwanag|isalin|ipasabot|tubag|i-explain)\b/.test(s))return null;return /\b(?:in|sa|ug|og|ng)\s+(?:bisaya|cebuano)\b/.test(s)?'ceb':/\b(?:in|sa|ug|og|ng)\s+(?:filipino|tagalog)\b/.test(s)?'fil':/\b(?:in|sa|ug|og|ng)\s+english\b/.test(s)?'en':null;}
-function reply(raw,lang='en',context={},active=null){const s=String(raw||'').trim().slice(0,240).toLowerCase();const requested=requestedLanguage(s);lang=requested||lang;const w=words(lang);if(active?.mode==='check'&&!active.finished)return {text:w.blocked,context:{}};
+function requestedLanguage(s){
+ const m=s.match(/\b(?:in|sa|ug|og|ng|gamit ang)\s+(bisaya|cebuano|filipino|tagalog|english|ingles)\s*[?!.,]*$/i);
+ const bare=s.match(/^(bisaya|cebuano|filipino|tagalog|english|ingles)(?:\s+(?:please|lang|palihog|po|na lang))?[?!.,]*$/i);
+ const name=(m||bare)?.[1];return name?(/bisaya|cebuano/i.test(name)?'ceb':/filipino|tagalog/i.test(name)?'fil':'en'):null;
+}
+// Detect high-confidence conversational markers, not shared math terminology.
+function inferredLanguage(s){
+ const ceb=/\b(?:unsa(?:on)?|ngano(?:ng)?|kanang|palihog|ipasabot|pasabot|pila|tubag|sakto|sayop|kinahanglan|pananglitan|balihon|maayong|gihapon|giunsa|nako|nimo|ug|og|lakang)\b/i.test(s);
+ const fil=/\b(?:paano|bakit|ano|magkano|ipaliwanag|pakipaliwanag|paki|sagutan|sagot|halimbawa|hakbang|hatiin|baligtarin|muli|ninyo|po|ng|ito|nito|iyon|kailangan)\b/i.test(s);
+ return ceb&&!fil?'ceb':fil&&!ceb?'fil':null;
+}
+function normalizeLanguage(lang){return ['fil','tl','tagalog','filipino'].includes(String(lang).toLowerCase())?'fil':['ceb','bisaya','cebuano'].includes(String(lang).toLowerCase())?'ceb':'en';}
+function reply(raw,lang='en',context={},active=null){
+ const s=String(raw||'').trim().slice(0,240).toLowerCase(),pref=normalizeLanguage(lang), prior=context||{};
+ const explicit=requestedLanguage(s), detected=inferredLanguage(s);
+ // An explicit request wins, then recognizable language, then conversation language
+ // (only while the selected preference is unchanged), then the chosen preference.
+ const effective=explicit||detected||(prior.preference===pref?prior.replyLanguage:null)||pref;
+ const result=replyInLanguage(raw,effective,prior,active,explicit);
+ return {...result,language:effective,context:{...result.context,preference:pref,replyLanguage:effective}};
+}
+function replyInLanguage(raw,lang,context,active,requested){const s=String(raw||'').trim().slice(0,240).toLowerCase();const w=words(lang);if(active?.mode==='check'&&!active.finished)return {text:w.blocked,context:{}};
  if(active?.question&&!active.finished){let q=active.question;let text;const other=parseExpression(raw);if(other&&other.text!==q.text)return {text:w.activeOnly,context:{op:q.op,type:q.type},assisted:false};if(active.resolved)text=`${w.already}\n${worked(q,lang)}`;else{let lines=[rule(q,lang)];if(active.lastReason&&w[active.lastReason]&&active.lastReason!=='correct')lines.push(w[active.lastReason]);let a=E.parse(q.a),b=E.parse(q.b);if(q.type==='fraction'&&['+','-'].includes(q.op)){let d=a.d*b.d/gcd(a.d,b.d);lines.push(`${w.common}: ${d}`,`${w.convert}: ${E.fmt(a)} = ?/${d}; ${E.fmt(b)} = ?/${d}`);}else if(q.type==='fraction'&&q.op==='÷')lines.push(`${E.fmt(a)} × (?)`);else if(q.op==='-')lines.push(`${w.opposite}: ${q.a} + (${E.fmt(E.rat(-b.n,b.d))})`);else if(q.type==='integer'&&['×','÷'].includes(q.op))lines.push(`${w.magnitudes}: ${abs(a.n)} ${q.op} ${abs(b.n)}`);if(/example|pananglitan|halimbawa|sample/.test(s)||raw==='@example'){let ex=fixed(q.op,q.type);if(ex.text===q.text||E.eq(E.parse(ex.answer),E.parse(q.answer)))ex=q.type==='fraction'?make('2/5','1/4',q.op):q.type==='decimal'?make('2.5','0.2',q.op):make('2','5',q.op);if(ex.text!==q.text&&!E.eq(E.parse(ex.answer),E.parse(q.answer)))lines.push(w.explain+'\n'+worked(ex,lang));}lines.push(w.hintEnd,w.assist);text=[...new Set(lines)].join('\n');}return {text,context:{op:q.op,type:q.type},assisted:!active.resolved};}
  const q=parseExpression(requested?String(raw).replace(/\s+(?:in|sa|ug|og|ng)\s+(?:bisaya|cebuano|filipino|tagalog|english)[?!.,]*$/i,''):raw);if(q)return {text:worked(q,lang)+'\n'+w.more,context:{op:q.op,type:q.type,q}};
  const t=topic(s),prior=context||{};let op=t.op||prior.op||'+',type=t.type||prior.type||'integer';
- if(requested&&prior.q)return {text:worked(prior.q,lang),context:prior};
- if(requested&&prior.op)return {text:rule(fixed(op,type),lang),context:prior};
+ if(requested&&prior.q&&!t.op&&!t.type)return {text:worked(prior.q,lang),context:prior};
+ if(requested&&prior.op&&!t.op&&!t.type)return {text:rule(fixed(op,type),lang),context:prior};
  if(/\d/.test(s))return {text:w.clarify,context:prior};
  const example=/example|pananglitan|halimbawa|sample/.test(s)||raw==='@example';
  if(example){let ex=fixed(op,type);return {text:w.explain+'\n'+worked(ex,lang),context:{op,type,q:ex}};}
@@ -67,5 +87,5 @@ function reply(raw,lang='en',context={},active=null){const s=String(raw||'').tri
  if(/^(hi|hello|hey|kumusta|kamusta|maayong adlaw|good morning|good afternoon)[!.\s]*$/.test(s))return {text:w.greeting,context:prior};
  return {text:w.fallback,context:prior};}
 function recommend(items){const rows=(items||[]).filter(x=>x&&ops.includes(x.op)&&types.includes(x.type)),groups=[];for(const op of ops)for(const type of types){const done=rows.filter(r=>r.completed&&r.op===op&&r.type===type).sort((a,b)=>(Date.parse(a.at)||0)-(Date.parse(b.at)||0)).slice(-5);let n=done.length,first=done.filter(r=>r.firstUnaided).length;const ids=new Set(done.map(r=>r.session+'|'+r.question)),errors={};for(const r of rows){if(!r.correct&&r.attempt===1&&ids.has(r.session+'|'+r.question)&&['sign','denominator','reciprocal','subtract','review'].includes(r.reason))errors[r.reason]=(errors[r.reason]||0)+1;}let reason=Object.keys(errors).sort((a,b)=>errors[b]-errors[a])[0]||null;groups.push({op,type,n,first,rate:n?first/n:null,reason});}if(!groups.some(g=>g.n))return {...groups[0],status:'empty'};let weak=groups.filter(g=>g.n>=2&&g.rate<.8).sort((a,b)=>a.rate-b.rate||b.n-a.n);if(weak.length)return {...weak[0],status:'weak'};let low=groups.filter(g=>g.n===1&&g.rate<.8);if(low.length)return {...low[0],status:'weak'};let explore=groups.find(g=>g.n<2);if(explore)return {...explore,status:'explore'};return {op:'mixed',type:'mixed',n:0,first:0,rate:null,reason:null,status:'strong'};}
-const api={words,parseExpression,make,worked,reply,recommend,rule,fixed};if(typeof module!=='undefined')module.exports=api;else root.MBTutor=api;
+const api={words,normalizeLanguage,parseExpression,make,worked,reply,recommend,rule,fixed};if(typeof module!=='undefined')module.exports=api;else root.MBTutor=api;
 })(globalThis);
